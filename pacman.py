@@ -3,6 +3,7 @@ import time
 import math
 import asyncio
 import random
+import json
 
 async def gui():
 
@@ -31,6 +32,10 @@ async def gui():
     temps_bonus = 3.5
     temps_avant_reapparition_bonus = 10#Temps avant que le bonus réapparaisse
     bonus_sur_le_jeu = True#Indique si le bonus est dans le jeu
+    coordonnees_portail_1 = (0,0) #Coordonnées dans la grille de jeu du 1er portail
+    coordonnees_portail_2 = (0,0)
+    derniere_teleportation_portail = 0#Derniere fois qu'on s'est fait téléporter
+    cooldown_portail = 0.3#Interval de temps en s pour prendre un portail
     rayon_pacman = 15
     vitesse = 3
 
@@ -105,14 +110,14 @@ async def gui():
                 if grille_jeu[y][x]==1 and grille_jeu[y+1][x]!=1:
                     pygame.draw.line(screen, couleur_bordure, (x*largeur_obstacle, (y+1)*hauteur_obstacle), ((x+1)*largeur_obstacle, (y+1)*hauteur_obstacle))
 
-        if bonus_sur_le_jeu:
+        if bonus_sur_le_jeu:#Dessin bonus
             pygame.draw.circle(screen, (255,0,255), (int(x_bonus), int(y_bonus)), int(rayon_pacman/4))
 
-        if pacman_power_up == False:
+        if pacman_power_up == False:#dessin pacman
             pygame.draw.circle(screen, (255,255,0), (int(position_x_pacman), int(position_y_pacman)), rayon_pacman)
             if int(time.time()*3)%2==0:
                 pygame.draw.polygon(screen, couleur_background, [(position_x_pacman, position_y_pacman), (position_x_pacman+rayon_pacman, position_y_pacman+int(rayon_pacman/2)), (position_x_pacman+rayon_pacman, position_y_pacman-int(rayon_pacman/2))], False)
-        else:
+        else:#dessin pacman en bonus
             pygame.draw.circle(screen, (255,0,200), (int(position_x_pacman), int(position_y_pacman)), rayon_pacman)
             if int(time.time()*5)%2==0:
                 pygame.draw.polygon(screen, couleur_background, [(position_x_pacman, position_y_pacman), (position_x_pacman+rayon_pacman, position_y_pacman+int(rayon_pacman/2)), (position_x_pacman+rayon_pacman, position_y_pacman-int(rayon_pacman/2))], False)
@@ -121,7 +126,8 @@ async def gui():
 
 
 
-        pygame.draw.circle(screen, (255,255,255), (x_fantome, y_fantome), rayon_pacman)
+        pygame.draw.circle(screen, (255,255,255), (x_fantome, y_fantome), rayon_pacman)#dessin fantome
+        
         pygame.display.flip()
 
     def update_position(position_x_pacman, position_y_pacman, direction_pacman):
@@ -215,12 +221,12 @@ async def gui():
 
 
         x_pacman_grille = int(position_x_pacman/largeur_obstacle)
-        y_pacman_grille = int((position_y_pacman-vitesse-rayon_pacman)/hauteur_obstacle)
+        y_pacman_grille = int(position_y_pacman/hauteur_obstacle)
         return position_x_pacman, position_y_pacman, direction_pacman, x_pacman_grille, y_pacman_grille
 
 
     #----INITIALISATION DE LA GRILLE DE JEU----
-    f = open('map.txt','r')
+    f = open('C:/Users/lucien.grancher/Downloads/pacman-multiplayer-main/map.txt','r')
     l = f.read().split("\n")
     l2 = l[0].split(",")
     largeur_grille = int(l2[0])
@@ -236,6 +242,10 @@ async def gui():
                 grille_jeu[y][x] = 1
             elif l[1+y][x]=="O":
                 grille_jeu[y][x] = 2
+                if coordonnees_portail_1 == (0,0):#Si les coordonnees du 1er portail ne sont pas connues, on les enregistre
+                    coordonnees_portail_1 = (x,y)
+                else:#On connait deja le premier portail, on enregistre le 2eme
+                    coordonnees_portail_2 = (x,y)
             else:
                 grille_jeu[y][x] = 0
     hauteur_obstacle =height/hauteur_grille
@@ -254,6 +264,17 @@ async def gui():
             x_fantome, y_fantome, x_grille_fantome, y_grille_fantome = coordonnees_fantome()
             position_x_pacman, position_y_pacman, direction_pacman, x_pacman_grille, y_pacman_grille = update_position(position_x_pacman, position_y_pacman, direction_pacman)
             update_screen()
+            
+            if (x_pacman_grille, y_pacman_grille)==coordonnees_portail_1 and time.time()-derniere_teleportation_portail>cooldown_portail:#Téléportation avec le premier portail
+                print("Teleportation portail 1")
+                position_x_pacman = int(coordonnees_portail_2[0]*largeur_obstacle + int(largeur_obstacle/2))
+                position_y_pacman = int(coordonnees_portail_2[1]*hauteur_obstacle + int(largeur_obstacle/2))
+                derniere_teleportation_portail = time.time()
+            if (x_pacman_grille, y_pacman_grille)==coordonnees_portail_2 and time.time()-derniere_teleportation_portail>cooldown_portail:#Téléportation avec le premier portail
+                print("Teleportation portail 2")
+                position_x_pacman = int(coordonnees_portail_1[0]*largeur_obstacle + int(largeur_obstacle/2))
+                position_y_pacman = int(coordonnees_portail_1[1]*hauteur_obstacle + int(largeur_obstacle/2))
+                derniere_teleportation_portail = time.time()
             if bonus_sur_le_jeu and distance(position_x_pacman, position_y_pacman, x_bonus, y_bonus)<1.25*rayon_pacman:
                 pacman_power_up = True
                 vitesse = 4
@@ -298,11 +319,10 @@ async def gui():
     pygame.quit()
 
 
-
 async def communication():
-    global x_fantome, y_fantome, position_x_pacman, position_y_pacman, derniere_actualisation_image, died, info_a_envoyer
+    global x_fantome, y_fantome, position_x_pacman, position_y_pacman, derniere_actualisation_image, died, info_a_envoyer, donneesJoueurs, nomJoueur
     import socket, asyncio
-    hote = "78.228.62.149"
+    hote = "172.21.5.163"
     port = 25565
     x_fantome, y_fantome = 789, 456
 
@@ -313,27 +333,30 @@ async def communication():
     await loop.sock_connect(socket, (hote, port))
     print(f"Connection on {port}")
     await loop.sock_sendall(socket, b"moi pacman")
-    await asyncio.sleep(refreshTime*2)
+    nomJoueur = await loop.sock_recv(socket, 255)
+    await asyncio.sleep(0.1)
+
     while derniere_actualisation_image > time.time() - 1:
         if not died:
             if info_a_envoyer == None:
-                await loop.sock_sendall(socket, bytes("posPac " + " " + str(position_x_pacman) + " " + str(position_y_pacman), "utf-8"))
+                await loop.sock_sendall(socket, bytes("pos " + str(position_x_pacman) + " " + str(position_y_pacman), "utf-8"))
             else:
                 await loop.sock_sendall(socket, info_a_envoyer)
                 info_a_envoyer = None
         else:
             await loop.sock_sendall(socket, bytes("died", "utf-8"))
-        var = await loop.sock_recv(socket, 20)
-        varSplitted = var.split()
-        if varSplitted[0] == b"posFan":
-            x_fantome, y_fantome = await get_var_from_bstr(var[7:])
-        elif var == b"died":
+        var = await loop.sock_recv(socket, 255)
+        print(var)
+        var = await get_var_from_json(var)
+        if var == b"died":
             died = True
         else:
-            print("Erreur : donnée reçue inconnue")
-        await asyncio.sleep(refreshTime/5)
+            donneesJoueurs = var
+    
+    
+        await asyncio.sleep(refreshTime)
 
-    print("Closing connection")
+    print("Close")
     await loop.sock_sendall(socket, bytes("close", 'utf-8'))
     socket.close()
 
@@ -344,10 +367,17 @@ async def get_var_from_bstr(bstr: bytes):
         r.append(int(float(v)))
     return r
 
+async def get_var_from_json(bstr: bytes):
+    bstr = bstr.decode("utf-8")
+    return json.loads(bstr)
+
+
 
 async def main():
     #derniere_actualisation_image = time.time()
-    global x_fantome, y_fantome, position_x_pacman, position_y_pacman, derniere_actualisation_image, info_a_envoyer
+    global x_fantome, y_fantome, position_x_pacman, position_y_pacman, derniere_actualisation_image, info_a_envoyer, nomJoueur, donneesJoueurs
+    nomJoueur = None
+    donneesJoueurs = {}
     info_a_envoyer = None
     loop = asyncio.get_event_loop()
     task_gui = loop.create_task(gui())
@@ -356,6 +386,6 @@ async def main():
     await task_gui
 
 
-refreshTime = 0.02
+refreshTime = 0.002
 loop = asyncio.get_event_loop()
 loop.run_until_complete(main())
