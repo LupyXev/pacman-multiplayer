@@ -97,7 +97,7 @@ async def gui():
                 if dic[key]['pacman'] == True:#Le perso est un pacman
                     try:
                         x, y = tuple(dic[key]['pos'].split(" "))
-                        x , y= int(x), int(y)
+                        x , y= float(x), float(y)
                         if dic[key]['powerup_on'] == False:
                             pygame.draw.circle(screen, (255,255,0), (int(x), int(y)), rayon_pacman)
                         else:
