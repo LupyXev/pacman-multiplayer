@@ -7,7 +7,8 @@ import json
 
 async def gui():
 
-    global x_fantome, y_fantome, position_x_pacman, position_y_pacman, derniere_actualisation_image, died, info_a_envoyer
+
+    global x_fantome, y_fantome, position_x_pacman, position_y_pacman, derniere_actualisation_image, died, info_a_envoyer, donneesJoueurs, nomJoueur
     died = False
     derniere_actualisation_image = time.time()
     width,height = 1080,720
@@ -50,7 +51,7 @@ async def gui():
         x_grille_fantome, y_grille_fantome = int(x_fantome/largeur_obstacle), int(y_fantome/hauteur_obstacle)
         return x_fantome, y_fantome, x_grille_fantome, y_grille_fantome
 
-    def generer_bonus():#Fonction pour générer une position pour le bonus
+    '''def generer_bonus():#Fonction pour générer une position pour le bonus
         x_grille_bonus = 0
         y_grille_bonus = 0
         while grille_jeu[y_grille_bonus][x_grille_bonus] == 1:#On recalcule des coordonnees jusqu'à tomber dans une case vide
@@ -58,7 +59,7 @@ async def gui():
             y_grille_bonus = random.randint(0,hauteur_grille-1)
         x_bonus = largeur_obstacle*x_grille_bonus+(largeur_obstacle/2)
         y_bonus = hauteur_obstacle*y_grille_bonus+(hauteur_obstacle/2)
-        return x_bonus, y_bonus
+        return x_bonus, y_bonus'''
 
 
     def update_screen():
@@ -110,24 +111,57 @@ async def gui():
                 if grille_jeu[y][x]==1 and grille_jeu[y+1][x]!=1:
                     pygame.draw.line(screen, couleur_bordure, (x*largeur_obstacle, (y+1)*hauteur_obstacle), ((x+1)*largeur_obstacle, (y+1)*hauteur_obstacle))
 
-        if bonus_sur_le_jeu:#Dessin bonus
-            pygame.draw.circle(screen, (255,0,255), (int(x_bonus), int(y_bonus)), int(rayon_pacman/4))
+
+        if len(donneesJoueurs)>0:
+            dic = donneesJoueurs[0]
+            for key in dic.keys():
+                if dic[key]['pacman'] == True:#Le perso est un pacman
+                    if bytes(str(key), 'utf-8') != nomJoueur:
+                        try:
+                            x, y = tuple(dic[key]['pos'].split(" "))
+                            x , y= int(x), int(y)
+                            if dic[key]['powerup_on'] == False:
+                                pygame.draw.circle(screen, (255,255,0), (int(x), int(y)), rayon_pacman)
+                            else:
+                                pygame.draw.circle(screen, (255,0,200), (int(x), int(y)), rayon_pacman)
+                            pygame.draw.circle(screen, (0,0,0), (int(x+int(rayon_pacman/2)), int(y-int(rayon_pacman/2))), int(rayon_pacman/5))
+                            pygame.draw.line(screen, (0,0,0), (x+int(rayon_pacman/4), y),( x+rayon_pacman, y))
+                            if int(time.time()*3)%2==0:
+                                pygame.draw.polygon(screen, couleur_background, [(x, y), (x+rayon_pacman, y+int(rayon_pacman/2)), (x+rayon_pacman, y-int(rayon_pacman/2))], False)
+                        except:
+                            pass
+                else:#le perso est un fantome
+                    if bytes(str(key), 'utf-8') != nomJoueur:#On ne se dessine pas soi-meme
+                        try:
+                            x, y = tuple(dic[key]['pos'].split(" "))
+                            x , y= int(x), int(y)
+                            pygame.draw.circle(screen, (255,255,255), (int(x), int(y)), rayon_pacman)
+                            pygame.draw.circle(screen, (0,0,0), (x+int(rayon_pacman/2), y-int(rayon_pacman/3)), int(rayon_pacman/5))
+                            pygame.draw.circle(screen, (0,0,0), (x-int(rayon_pacman/2), y-int(rayon_pacman/3)), int(rayon_pacman/5))
+                        except:
+                            pass
+
+            if donneesJoueurs[1] != None:#On vérifie que les coordonnées du bonus soit envoyées
+                bonus_sur_le_jeu = True
+                try:
+                    x_bonus, y_bonus = tuple(donneesJoueurs[1])
+                    pygame.draw.circle(screen, (255,0,255), (int(x_bonus), int(y_bonus)), int(rayon_pacman/4))
+                except:
+                    pass
+            else:
+                bonus_sur_le_jeu = False
 
         if pacman_power_up == False:#dessin pacman
-            pygame.draw.circle(screen, (255,255,0), (int(position_x_pacman), int(position_y_pacman)), rayon_pacman)
+            pygame.draw.circle(screen, (255,200,0), (int(position_x_pacman), int(position_y_pacman)), rayon_pacman)
             if int(time.time()*3)%2==0:
                 pygame.draw.polygon(screen, couleur_background, [(position_x_pacman, position_y_pacman), (position_x_pacman+rayon_pacman, position_y_pacman+int(rayon_pacman/2)), (position_x_pacman+rayon_pacman, position_y_pacman-int(rayon_pacman/2))], False)
         else:#dessin pacman en bonus
-            pygame.draw.circle(screen, (255,0,200), (int(position_x_pacman), int(position_y_pacman)), rayon_pacman)
+            pygame.draw.circle(screen, (200,0,150), (int(position_x_pacman), int(position_y_pacman)), rayon_pacman)
             if int(time.time()*5)%2==0:
                 pygame.draw.polygon(screen, couleur_background, [(position_x_pacman, position_y_pacman), (position_x_pacman+rayon_pacman, position_y_pacman+int(rayon_pacman/2)), (position_x_pacman+rayon_pacman, position_y_pacman-int(rayon_pacman/2))], False)
         pygame.draw.circle(screen, (0,0,0), (int(position_x_pacman+int(rayon_pacman/2)), int(position_y_pacman-int(rayon_pacman/2))), int(rayon_pacman/5))
         pygame.draw.line(screen, (0,0,0), (position_x_pacman+int(rayon_pacman/4), position_y_pacman),( position_x_pacman+rayon_pacman, position_y_pacman))
 
-
-
-        pygame.draw.circle(screen, (255,255,255), (x_fantome, y_fantome), rayon_pacman)#dessin fantome
-        
         pygame.display.flip()
 
     def update_position(position_x_pacman, position_y_pacman, direction_pacman):
@@ -226,7 +260,7 @@ async def gui():
 
 
     #----INITIALISATION DE LA GRILLE DE JEU----
-    f = open('C:/Users/lucien.grancher/Downloads/pacman-multiplayer-main/map.txt','r')
+    f = open('map.txt','r')
     l = f.read().split("\n")
     l2 = l[0].split(",")
     largeur_grille = int(l2[0])
@@ -251,20 +285,20 @@ async def gui():
     hauteur_obstacle =height/hauteur_grille
     largeur_obstacle = width/largeur_grille
 
-    x_bonus, y_bonus = generer_bonus()
-    info_a_envoyer = bytes(f"bonus {x_bonus} {y_bonus}", "utf-8")
+    #x_bonus, y_bonus = generer_bonus() géré côté serveur
+    #info_a_envoyer = bytes(f"bonus {x_bonus} {y_bonus}", "utf-8")
     #----FIN INITIALISATION GRILLE DE JEU----
 
 
     running = True
 
-    while running:
+    while running and not died:
         if time.time()-derniere_actualisation_image>1.0/fps:
             derniere_actualisation_image = time.time()
             x_fantome, y_fantome, x_grille_fantome, y_grille_fantome = coordonnees_fantome()
             position_x_pacman, position_y_pacman, direction_pacman, x_pacman_grille, y_pacman_grille = update_position(position_x_pacman, position_y_pacman, direction_pacman)
             update_screen()
-            
+
             if (x_pacman_grille, y_pacman_grille)==coordonnees_portail_1 and time.time()-derniere_teleportation_portail>cooldown_portail:#Téléportation avec le premier portail
                 print("Teleportation portail 1")
                 position_x_pacman = int(coordonnees_portail_2[0]*largeur_obstacle + int(largeur_obstacle/2))
@@ -287,19 +321,41 @@ async def gui():
                 vitesse = 3
                 info_a_envoyer = bytes(f"powerup fin", "utf-8")
                 #Envoyer au fantome qu'on a terminé le bonus
-            if time.time()-heure_consommation_bonus>temps_avant_reapparition_bonus and not bonus_sur_le_jeu:
+            '''if time.time()-heure_consommation_bonus>temps_avant_reapparition_bonus and not bonus_sur_le_jeu:
                 x_bonus, y_bonus = generer_bonus()
                 info_a_envoyer = bytes(f"bonus {x_bonus} {y_bonus}", "utf-8")
+                bonus_sur_le_jeu = True''' #le bonus est généré côté serveur
+            if len(donneesJoueurs) > 1 and donneesJoueurs[1] != None:
+                x_bonus, y_bonus = donneesJoueurs[1]
                 bonus_sur_le_jeu = True
-            if distance(position_x_pacman, position_y_pacman, x_fantome, y_fantome)<2*rayon_pacman:
-                died = True
-            if died:
+
+            if len(donneesJoueurs)>0:
+                #print(donneesJoueurs)
+                dic = donneesJoueurs[0]
+                for key in dic.keys():
+                    if dic[key]['pacman'] == False:#Le perso est un fantome
+                        try:
+                            x, y = tuple(dic[key]['pos'].split(" "))
+                            x , y= int(x), int(y)
+                            if distance(x, y, position_x_pacman, position_y_pacman)<2*rayon_pacman:
+                                if not pacman_power_up:
+                                    died = True
+                                    print("Vous avez été mangé par un fantome...")
+                                    info_a_envoyer = bytes(f"died {nomJoueur}", "utf-8")
+                                else:#on est en powerup
+                                    print("Vous avez tué un fantome !")
+                                    info_a_envoyer = bytes(f"died {key}", "utf-8")
+                        except:
+                            pass
+
+
+            '''if died: #désactivé suite à modification systeme mort
                 running = False
                 if pacman_power_up:
                     print("Vous avez mangé le fantome ! Félcitations")
                 else:
                     print("Vous avez été mangé par le fantome...")
-                await asyncio.sleep(0.2)
+                await asyncio.sleep(0.2)'''
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -322,7 +378,7 @@ async def gui():
 async def communication():
     global x_fantome, y_fantome, position_x_pacman, position_y_pacman, derniere_actualisation_image, died, info_a_envoyer, donneesJoueurs, nomJoueur
     import socket, asyncio
-    hote = "172.21.5.163"
+    hote = "127.0.0.1"
     port = 25565
     x_fantome, y_fantome = 789, 456
 
@@ -334,6 +390,7 @@ async def communication():
     print(f"Connection on {port}")
     await loop.sock_sendall(socket, b"moi pacman")
     nomJoueur = await loop.sock_recv(socket, 255)
+    print(f"Vous êtes le joueur {nomJoueur.decode('utf-8')}")
     await asyncio.sleep(0.1)
 
     while derniere_actualisation_image > time.time() - 1:
@@ -343,17 +400,15 @@ async def communication():
             else:
                 await loop.sock_sendall(socket, info_a_envoyer)
                 info_a_envoyer = None
-        else:
-            await loop.sock_sendall(socket, bytes("died", "utf-8"))
-        var = await loop.sock_recv(socket, 255)
-        print(var)
-        var = await get_var_from_json(var)
-        if var == b"died":
-            died = True
-        else:
-            donneesJoueurs = var
-    
-    
+            var = await loop.sock_recv(socket, 1024)
+            #print(var)
+            if var == b"died":
+                died = True
+                print("Vous avez été mangé par un fantôme !")
+            else:
+                var = await get_var_from_json(var)
+                donneesJoueurs = var
+
         await asyncio.sleep(refreshTime)
 
     print("Close")

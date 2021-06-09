@@ -1,9 +1,49 @@
 import socket, asyncio
-import time, json
+import json, random
 
 port = 25565
 socket_var = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 socket_var.bind(('', port))
+
+
+#----INITIALISATION DE LA GRILLE DE JEU----
+width,height = 1080,720
+coordonnees_portail_1 = (0,0) #Coordonnées dans la grille de jeu du 1er portail
+coordonnees_portail_2 = (0,0)
+f = open('map.txt','r')
+l = f.read().split("\n")
+l2 = l[0].split(",")
+largeur_grille = int(l2[0])
+hauteur_grille = int(l2[1])
+
+grille_jeu = [None]*hauteur_grille
+for i in range(hauteur_grille):
+	grille_jeu[i] = [None]*largeur_grille
+
+for x in range(largeur_grille):
+	for y in range(hauteur_grille):
+		if l[1+y][x]=="#":
+			grille_jeu[y][x] = 1
+		elif l[1+y][x]=="O":
+			grille_jeu[y][x] = 2
+			if coordonnees_portail_1 == (0,0):#Si les coordonnees du 1er portail ne sont pas connues, on les enregistre
+				coordonnees_portail_1 = (x,y)
+			else:#On connait deja le premier portail, on enregistre le 2eme
+				coordonnees_portail_2 = (x,y)
+		else:
+			grille_jeu[y][x] = 0
+hauteur_obstacle =height/hauteur_grille
+largeur_obstacle = width/largeur_grille
+
+async def generer_bonus():#Fonction pour générer une position pour le bonus
+	x_grille_bonus = 0
+	y_grille_bonus = 0
+	while grille_jeu[y_grille_bonus][x_grille_bonus] == 1:#On recalcule des coordonnees jusqu'à tomber dans une case vide
+		x_grille_bonus = random.randint(0,largeur_grille-1)
+		y_grille_bonus = random.randint(0,hauteur_grille-1)
+	x_bonus = largeur_obstacle*x_grille_bonus+(largeur_obstacle/2)
+	y_bonus = hauteur_obstacle*y_grille_bonus+(hauteur_obstacle/2)
+	return [x_bonus, y_bonus]
 
 async def gerer_connexion(client, loop):
 	global donneesJoueurs, listeJoueurs, posPowerup
@@ -23,10 +63,9 @@ async def gerer_connexion(client, loop):
 	else:
 		print(response)
 		print("Erreur initialisation fantome/pacman")
-		
 	for p in listeJoueurs:
 			if p >= dernierNombre:
-				dernierNombre += 1
+				dernierNombre = p + 1
 	#last20 = time.time()
 	#counter = 0
 	if pacman:
@@ -47,66 +86,38 @@ async def gerer_connexion(client, loop):
 			await loop.sock_sendall(client, bytes("died", "utf-8"))
 		elif receivedSplitted[0] == b"pos":
 			donneesJoueurs[nomJoueur]["pos"] = received[4:].decode("utf-8")
-		elif receivedSplitted[0] == b"powerup_eaten":
+		elif received == b"bonus mange":
 			donneesJoueurs[nomJoueur]["powerup_on"] = True
-			posPowerup = None
-		elif receivedSplitted[0] == b"powerup_ended":
+			posPowerup = await generer_bonus()
+		elif received == b"powerup fin":
 			donneesJoueurs[nomJoueur]["powerup_on"] = False
 		elif receivedSplitted[0] == b"died":
-			donneesJoueurs.pop(nomJoueur)
-			listeJoueurs.remove(nomJoueur)
-			running = False
+			try:
+				donneesJoueurs.pop(int(receivedSplitted[1].decode("utf-8")))
+				listeJoueurs.remove(int(receivedSplitted[1].decode("utf-8")))
+				print(f"suppression réussite du joueur {int(receivedSplitted[1].decode('utf-8'))}")
+			except:
+				pass
 		elif receivedSplitted[0] == b"close":
 			running = False
 			listeJoueurs.remove(nomJoueur)
 			donneesJoueurs.pop(nomJoueur)
 		else:
-			print(f"Recu d'un client inconnu : {received}")
+			print(f"Erreur : Recu d'un client inconnu : {received}")
 		
 		if running:
-			print(donneesJoueurs)
+			#print(donneesJoueurs)
 			await loop.sock_sendall(client, bytes(json.dumps([donneesJoueurs, posPowerup]), "utf-8"))
 			
-		'''if pacman:
-            received = await loop.sock_recv(client, 255)
-            if received == b"close":
-                running = False
 
-            else:
-                if received.split()[0] != b"posPac":
-                    info_a_envoyer_a_fantome = received
-                else:
-                    posPacman = received
-
-                if info_a_envoyer_a_pacman != None:
-                    await loop.sock_sendall(client, info_a_envoyer_a_pacman)
-                    info_a_envoyer_a_pacman = None
-                else:
-                    await loop.sock_sendall(client, posFantome)
-        else:
-            received = await loop.sock_recv(client, 20)
-            if received == b"close":
-                running = False
-
-            else:
-                if received.split()[0] != b"posFan":
-                    info_a_envoyer_a_pacman = received
-                else:
-                    posFantome = received
-
-                if info_a_envoyer_a_fantome != None:
-                    await loop.sock_sendall(client, info_a_envoyer_a_fantome)
-                    info_a_envoyer_a_fantome = None
-                else:
-                    await loop.sock_sendall(client, posPacman)'''
-	print("connection closed")
+	print(f"connection closed (joueur {nomJoueur})")
 
 
 async def main():
 	global donneesJoueurs, listeJoueurs, posPowerup
 	donneesJoueurs = {}
 	listeJoueurs = []
-	posPowerup = None #les coords sous la forme b"pos_x pos_y"
+	posPowerup = await generer_bonus() #les coords sous la forme [pos_x pos_y]
 
 	#info_a_envoyer_a_fantome, info_a_envoyer_a_pacman = None, None
 	#posPacman, posFantome = b"posPac 540 360", b"posFan 789 456"
